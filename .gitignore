@@ -1,0 +1,4 @@
+*.zip
+*.swp
+*.json
+node_modules
