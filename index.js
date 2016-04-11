@@ -3,6 +3,7 @@ var async = require('async');
 var res;
 var line_key = require('./line_key.json');
 var google_key = require('./google_key.json');
+var base = require('./base.json');
 
 exports.handler = function(event, context) {
     console.log('Received event:', JSON.stringify(event, null, 2));
@@ -136,7 +137,7 @@ exports.handler = function(event, context) {
                 }
             };
             var opts = {
-                url: 'https://trialbot-api.line.me/v1/events',
+                url: 'http://' + base.host + '/proxy.php',
                 headers: {
                     "Content-type": "application/json; charset=UTF-8",
                     "X-Line-ChannelID": line_key.channelID,
