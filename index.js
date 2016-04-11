@@ -1,7 +1,5 @@
 var request = require('request');
-var aws = require('aws-sdk');
 var async = require('async');
-var s3 = new aws.S3({params: {Bucket: 'fukase-no-owari.net'}});
 var res;
 var line_key = require('./line_key.json');
 var google_key = require('./google_key.json');
@@ -12,12 +10,10 @@ exports.handler = function(event, context) {
 
     async.waterfall([
         function recognize(callback) {
-            if (res.content.contentType === 2) { //画像が投稿された時
+            if (res.content.contentType === 2) {
                 callback(null, 'image');
             } else if (res.content.text.match(/^時間/)) {
                 callback(null, 'time');
-            } else if (res.content.text.match(/^フカセ/)) {
-                callback(null, 'fukase');
             } else {
                 callback(null, 'other');
             }
@@ -51,7 +47,6 @@ exports.handler = function(event, context) {
                     },
                     function sendCloudAPI(img, callback2) {
                        console.log('send cloud api');
-                        var key = google_key.key;
                         var data = {
                             "requests":[
                                 {
@@ -68,12 +63,43 @@ exports.handler = function(event, context) {
                             ]
                         };
                         var opts = {
-                            url: 'https://vision.googleapis.com/v1/images:annotate?key=' + key,
+                            url: 'https://vision.googleapis.com/v1/images:annotate?key=' + google_key.key,
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify(data)
                         }
+                        var text = '';
                         request.post(opts, function (error, response, body) {
-                            callback2(null, JSON.stringify(body));
+                            console.log(body);
+                            body = JSON.parse(body);
+                            var labelAnnotations = body.responses[0].labelAnnotations;
+                            var faceAnnotations = body.responses[0].faceAnnotations;
+                            var textAnnotations = body.responses[0].textAnnotations;
+                            var landmarkAnnotations = body.responses[0].landmarkAnnotations;
+                            var logoAnnotations = body.responses[0].logoAnnotations;
+                            var safeSearchAnnotation = body.responses[0].safeSearchAnnotation;
+                            if (labelAnnotations !== undefined) {
+                                for (var i = 0; i < labelAnnotations.length; i++) {
+                                    text += '"' + labelAnnotations[i].description + '"' + "とか\n";
+                                }
+                                text += "まぁその辺りじゃないかな\n\n";
+                            }
+                            if (faceAnnotations !== undefined) {
+                                text += "人間が" + faceAnnotations.length + "人いるみたいだね\n\n";
+                            }
+                            if (textAnnotations !== undefined) {
+                                text += "「" + textAnnotations[0].description.replace(/\n/g, ' ') + "」とかって書いてあるなぁ\n\n";
+                            }
+                            if (landmarkAnnotations !== undefined) {
+                                text += "あ！これ場所は" + landmarkAnnotations[0].description + "だよね！\n\n";
+                            }
+                            if (logoAnnotations !== undefined) {
+                                text += "ってかこれ「" + logoAnnotations[0].description + "」じゃね？www\n\n";
+                            }
+                            if (safeSearchAnnotation !== undefined && (safeSearchAnnotation.adult === 'LIKELY' || safeSearchAnnotation.adult === 'VERY_LIKELY')) {
+                                text += "あ、いや、、、てかこれ…ちょっとエッチ///\n\n";
+                            }
+                            text = text.replace(/\n+$/g,'');
+                            callback2(null, text);
                         });
                     }
                 ], function (err, result) {
@@ -91,9 +117,6 @@ exports.handler = function(event, context) {
                 var second = date.getSeconds();
                 var text = year+"年"+month+"月"+day+"日"+hour+"時"+minute+"分"+second+"秒";
                 callback(null, text);
-            } else if (data === 'fukase') {
-                console.log('run fukase');
-                callback(null, "fukase");
             } else {
                 console.log('run else');
                 var text = 'いや、ちょっとなに言ってるか分かんないっすｗ';
@@ -126,7 +149,7 @@ exports.handler = function(event, context) {
                 if (!error && response.statusCode == 200) {
                     callback(null);
                 } else {
-                    console.log(JSON.stringify(body.statusMessage));
+                    console.log(JSON.stringify(body));
                     callback(error);
                 }
             });
