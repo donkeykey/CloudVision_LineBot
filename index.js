@@ -28,9 +28,8 @@ exports.handler = function(event, context) {
                         var id = res.content.id;
 
                         var opts = {
-                            url: 'https://trialbot-api.line.me/v1/bot/message/' + id + '/content',
+                            url: 'http://' + base.host + '/callback_proxy.php?id=' + id,
                             headers: {
-                                "Content-type": "application/json; charset=UTF-8",
                                 "X-Line-ChannelID": line_key.channelID,
                                 "X-Line-ChannelSecret": line_key.channelSecret,
                                 "X-Line-Trusted-User-With-ACL": line_key.mid
@@ -38,16 +37,19 @@ exports.handler = function(event, context) {
                             encoding: null
                         }
                         request(opts, function(error, response, body) {
-                            if (!error && response.statusCode == 200) {
+                            console.log('error: ' + JSON.stringify(error));
+                            console.log('response : ' + JSON.stringify(response));
+                            if (!error) {
                                 var img = body.toString('base64')
                                 callback2(null, img);
                             } else {
+                                console.log('LINEえらーだよ');
                                 callback2(error);
                             }
                         });
                     },
                     function sendCloudAPI(img, callback2) {
-                       console.log('send cloud api');
+                        console.log('send cloud api');
                         var data = {
                             "requests":[
                                 {
@@ -72,39 +74,43 @@ exports.handler = function(event, context) {
                         request.post(opts, function (error, response, body) {
                             console.log(body);
                             body = JSON.parse(body);
-                            var labelAnnotations = body.responses[0].labelAnnotations;
-                            var faceAnnotations = body.responses[0].faceAnnotations;
-                            var textAnnotations = body.responses[0].textAnnotations;
-                            var landmarkAnnotations = body.responses[0].landmarkAnnotations;
-                            var logoAnnotations = body.responses[0].logoAnnotations;
-                            var safeSearchAnnotation = body.responses[0].safeSearchAnnotation;
-                            if (labelAnnotations !== undefined) {
-                                for (var i = 0; i < labelAnnotations.length; i++) {
-                                    text += '"' + labelAnnotations[i].description + '"' + "とか\n";
+                            if (body.responses[0].error === undefined) {
+                                var labelAnnotations = body.responses[0].labelAnnotations;
+                                var faceAnnotations = body.responses[0].faceAnnotations;
+                                var textAnnotations = body.responses[0].textAnnotations;
+                                var landmarkAnnotations = body.responses[0].landmarkAnnotations;
+                                var logoAnnotations = body.responses[0].logoAnnotations;
+                                var safeSearchAnnotation = body.responses[0].safeSearchAnnotation;
+                                if (labelAnnotations !== undefined) {
+                                    for (var i = 0; i < labelAnnotations.length; i++) {
+                                        text += '"' + labelAnnotations[i].description + '"' + "とか\n";
+                                    }
+                                    text += "まぁその辺りじゃないかな\n\n";
                                 }
-                                text += "まぁその辺りじゃないかな\n\n";
+                                if (faceAnnotations !== undefined) {
+                                    text += "人間が" + faceAnnotations.length + "人いるみたいだね\n\n";
+                                }
+                                if (textAnnotations !== undefined) {
+                                    text += "「" + textAnnotations[0].description.replace(/\n/g, ' ') + "」とかって書いてあるなぁ\n\n";
+                                }
+                                if (landmarkAnnotations !== undefined) {
+                                    text += "あ！これ場所は" + landmarkAnnotations[0].description + "だよね！\n\n";
+                                }
+                                if (logoAnnotations !== undefined) {
+                                    text += "ってかこれ「" + logoAnnotations[0].description + "」じゃね？www\n\n";
+                                }
+                                if (safeSearchAnnotation !== undefined && (safeSearchAnnotation.adult === 'LIKELY' || safeSearchAnnotation.adult === 'VERY_LIKELY')) {
+                                    text += "あ、いや、、、てかこれ…ちょっとエッチ///\n\n";
+                                }
+                                text = text.replace(/\n+$/g,'');
+                                callback2(null, text);
+                            } else {
+                                callback2(null, "ごめん、エラーだわ");
                             }
-                            if (faceAnnotations !== undefined) {
-                                text += "人間が" + faceAnnotations.length + "人いるみたいだね\n\n";
-                            }
-                            if (textAnnotations !== undefined) {
-                                text += "「" + textAnnotations[0].description.replace(/\n/g, ' ') + "」とかって書いてあるなぁ\n\n";
-                            }
-                            if (landmarkAnnotations !== undefined) {
-                                text += "あ！これ場所は" + landmarkAnnotations[0].description + "だよね！\n\n";
-                            }
-                            if (logoAnnotations !== undefined) {
-                                text += "ってかこれ「" + logoAnnotations[0].description + "」じゃね？www\n\n";
-                            }
-                            if (safeSearchAnnotation !== undefined && (safeSearchAnnotation.adult === 'LIKELY' || safeSearchAnnotation.adult === 'VERY_LIKELY')) {
-                                text += "あ、いや、、、てかこれ…ちょっとエッチ///\n\n";
-                            }
-                            text = text.replace(/\n+$/g,'');
-                            callback2(null, text);
                         });
                     }
                 ], function (err, result) {
-                    callback(null, result);
+                    callback(err, result);
                 });
             } else if (data === 'time') {
                 console.log('run time');
@@ -138,6 +144,7 @@ exports.handler = function(event, context) {
             };
             var opts = {
                 url: 'http://' + base.host + '/proxy.php',
+                //url: 'https://trialbot-api.line.me/v1/events',
                 headers: {
                     "Content-type": "application/json; charset=UTF-8",
                     "X-Line-ChannelID": line_key.channelID,
